@@ -9,6 +9,8 @@ Each entry: the question, options we weighed, what we chose, and why. These doub
 - [ ] Drawing on a past version: auto-fork, or read-only until "Fork from here"? (Q2)
 - [ ] Onion-skin overlay when previewing past versions? (Q2)
 - [ ] Instead of a hint on the empty timeline, should a tutorial popup explain the timeline the first time someone opens a project? (Q2)
+- [ ] How do you compare two versions on the history page: side by side, a before/after slider, or onion skin? Linked to the onion-skin question above (H7)
+- [ ] Which versions get full thumbnails on the history graph? Tiffany leans toward artist marks, for agency and personalization. If marks only, what's the fallback when there are none? (H4)
 
 **Prototype placeholders (decide, then update `prototype/`)**
 - [ ] Drawing on a past version is blocked, with a notice that the behavior is undecided (auto-fork vs. read-only + restore)
@@ -289,6 +291,119 @@ Ruled out:
 - **Text styles:** Rewind/Title 20, Heading 17, Body 15, Label 15, Caption 13, Caption strong 13.
 - **Effect style:** Rewind/Panel shadow (two soft dark purple shadows).
 - The original 13 color styles were left as they were.
+
+---
+
+## H1. What is the history page for?
+
+**Decided:** 2026-10-17.
+
+**The product overall is for recovering work.** The two main cases:
+1. **"What brush did I use there?"** The artist can't remember which brush, size, or color they used on part of the drawing.
+2. **Trying variations without losing the original.** The artist wants to try a different version of part of the drawing without duplicating the file or overwriting what they had.
+
+**The history page tells the story of the process so far**, and lets the artist go back to any part of that story.
+
+**How this splits between the two screens:**
+- **Timeline bar (canvas page):** fast recovery while drawing. Drag back, look, return.
+- **History page:** the story. See the whole process, including forks, and go back to a chapter of it.
+
+**Implication:** case 1 needs the brush, size, and color for a version to be easy to find and reuse. This belongs in the selected-version panel (H5), where Ajia's sketch already has "reuse a brush or color."
+
+---
+
+## H2. Getting to the history page and back
+
+**Decided:** 2026-10-17.
+- **The timeline bar expands into the history page** instead of opening a new screen. The bar grows into the page's graph, so it's clear they show the same history.
+- **A "Back to drawing" button** returns to the canvas. It probably collapses back into the bar.
+
+---
+
+## H3. History page layout
+
+**Decided:** 2026-10-17. **Preview on top, graph along the bottom.**
+
+```
+┌─[← Back to drawing]──────────────────────┐
+│ ┌───────────────────────┐ ┌────────┐     │
+│ │                       │ │ v3     │     │
+│ │   large preview       │ │ layers │     │
+│ │   (selected version)  │ │ brushes│     │
+│ │                       │ │ actions│     │
+│ └───────────────────────┘ └────────┘     │
+│ main ─▢─▪─▪─▢─▪─▪─▪─▢   (graph,          │
+│ fork 1        └▪─▪─▢     full width)     │
+└──────────────────────────────────────────┘
+```
+
+| Option | Trade-off |
+|---|---|
+| **Preview top, graph bottom** | ✅ The preview takes the canvas's place and the graph sits where the bar was, so the bar visibly grows upward into the graph. The left-to-right graph gets the full width |
+| Graph top, preview below | The story comes first, but the bar would jump from the bottom to the top during the expand animation |
+| Ajia's sketch: preview left, graph right | A left-to-right graph squeezed into a column only fits a few versions |
+
+**Selected-version panel** (layers, brushes, actions) sits to the right of the preview. Its contents are H5.
+
+---
+
+## H5. Selected-version panel
+
+**Decided:** 2026-10-17. The panel next to the preview shows:
+- **Layers breakdown** (Ajia's sketch): each layer with a thumbnail, new strokes outlined, hidden layers marked. **Each layer row also lists the brushes used on that layer in this version, with size, opacity, and color** (e.g. "Lineart · pen 4px, dark purple"). This is where use case 1 ("what brush did I use for that part?") is answered, grouped the way artists think about it.
+- **Version details:** date, time spent, % of canvas changed, and what ended the version (a pause, the 10-minute limit, or a layer change).
+
+**Not chosen for now:**
+- A separate brushes list. Brush info lives inside each layer row instead. Whether tapping a brush there loads its settings is part of H6 (actions).
+- Tapping a spot on the preview to see which stroke, brush, size, and color made it.
+
+---
+
+## H6. Actions on a selected version
+
+**Decided:** 2026-10-17.
+- **Continue from here:** return to drawing starting from this version (use case 2, trying variations). *Provisional:* whether this creates a fork automatically or goes through a "Fork from here" button depends on the tabled question about drawing on a past version.
+- **Mark:** make this version a key moment, so it gets a full thumbnail. *Provisional:* depends on whether marks exist (tabled, H4 / Q3).
+- **Export image:** save this version as an image (Q3's "branch version as an image").
+
+**Not chosen for now:**
+- "Use this brush" (tap a brush in a layer row to load its settings). The brush info is still shown in the layer rows.
+- "Play this branch" as a timelapse in the preview. Playback still exists on the timeline bar's ▶ button.
+
+---
+
+## H7. Comparing two versions
+
+**⏸ Tabled — ask Ajia & Isabella.** Options: side by side, a before/after slider, or onion skin. Linked to the tabled onion-skin question for the canvas preview (Q2).
+
+---
+
+## H4. Fork graph
+
+**Decided (direction):** 2026-10-17. **Time runs left to right, matching the timeline bar.** Each branch is a row.
+
+**Decided: how each version is shown.** Full thumbnails only at key moments (B), small segments in between with a cropped "what changed" preview (E), and a large preview of whichever version is selected (C).
+- **Key moments get full thumbnails**, so the graph reads like a storyboard you can skim.
+- **Versions in between are small segments**, the same as on the timeline bar. Hovering or selecting one shows a **crop of only the area drawn in that version** (from the recorded stroke positions), so small changes like "refined the eyes" are visible.
+- **Selecting any version shows it large** in the preview area, with its layer breakdown (Ajia's sketch).
+
+**Pain points with thumbnails that this addresses:**
+1. Neighboring versions look the same at thumbnail size, but the reason to go back is often a detail. → The crop shows the detail.
+2. A readable thumbnail is ~100–120px, so only ~8 fit across a tablet, and long histories lose the overview. → Only key moments are full size.
+3. Every fork adds another row of thumbnails. → Rows are mostly small segments.
+4. Early versions are mostly blank. → They're segments unless they're a key moment.
+
+| Option | Trade-off |
+|---|---|
+| A. Thumbnail for every version | Most visual, but has all four problems |
+| **B. Thumbnails at key moments only** | ✅ Storyboard you can skim, stays compact. Needs a rule for what's "key" |
+| **C. Small graph + one large preview** | ✅ Big enough to judge detail. On its own, the graph doesn't tell the story |
+| D. Zoom in to see thumbnails | Flexible, but hardest to build and to discover |
+| **E. Crop thumbnails to what changed** | ✅ Shows what you did in that version. Loses the whole-piece context, so it's used for in-between versions only |
+
+**⏸ Tabled — ask Ajia & Isabella: what counts as a key moment.** Tiffany is leaning toward **artist marks**: the artist chooses which versions become thumbnails, which gives them agency and makes the story their own. This ties in with the TBD question on whether marks exist (Q3).
+- Other options: fork points and branch ends, the first version of each session, big changes (edit size above a set amount).
+- **If we go with marks only:** a project with no marks would have no thumbnails at all. A fallback could be needed, e.g. always show the latest version of each branch.
 
 ---
 
