@@ -3,11 +3,11 @@
 // ({brush, color, weight, layer, seed, segments}); strokes group into versions
 // that close on a pause, a time cap, or a layer add/delete (decisions.md Q1).
 
-const PAPER = "#fbf8f1";
+const PAPER = "#FFFFFF"; // --color-bg-canvas
 
+// default brush swatches: the saturated palette colors belong to the artwork, not the UI (Q6)
 const PALETTE = [
-  { name: "Black", hex: "#1d1b19" },
-  { name: "Gray", hex: "#8a8580" },
+  { name: "Dark Purple", hex: "#20255d" },
   { name: "Teal", hex: "#2a9d8f" },
   { name: "Dark Green", hex: "#1f5f4a" },
   { name: "Light Blue", hex: "#8ecae6" },
@@ -15,7 +15,6 @@ const PALETTE = [
   { name: "Orange", hex: "#e0632a" },
   { name: "Red Pastel", hex: "#e9787a" },
   { name: "Magenta", hex: "#b5179e" },
-  { name: "Cream", hex: "#f4eee3" },
 ];
 
 const ICONS = {
@@ -25,6 +24,9 @@ const ICONS = {
   "2B": '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M6 26l2-6L22 6l4 4-14 14z"/><path d="M8 20l4 4"/></svg>',
   charcoal: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 22l12-14 5 4-12 14z" fill="currentColor" fill-opacity=".25"/><path d="M6 27c3-1 5-1 8 0" stroke-dasharray="2 2"/></svg>',
   spray: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="11" y="12" width="9" height="15" rx="2"/><path d="M13 12V9h5v3M18 7h2"/><g fill="currentColor" stroke="none"><circle cx="24" cy="6" r="1"/><circle cx="26.5" cy="9" r="1"/><circle cx="23.5" cy="10.5" r=".9"/><circle cx="27" cy="5" r=".8"/></g></svg>',
+  eraser: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M17.5 6.5l8 8L14 26H8.5L5 22.5z"/><path d="M11 12.5l8.5 8.5M8.5 26H26"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>',
   eye: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>',
   eyeOff: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><path d="M4 20L20 4"/></svg>',
   trash: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
@@ -37,7 +39,10 @@ const BRUSHES = [
   { id: "2B", label: "soft", weight: 1.4 },
   { id: "charcoal", label: "charcoal", weight: 1.2 },
   { id: "spray", label: "spray", weight: 1 },
+  { id: "eraser", label: "eraser", weight: 1, erase: true },
 ];
+
+const ERASER_PX = 24; // eraser width at size 1.0
 
 const TIMING = {
   real: { pause: 90_000, cap: 600_000, capLabel: "10 min of drawing" },
@@ -50,7 +55,7 @@ const GRID = 24; // edit-size grid: canvas split into GRID×GRID cells
 
 const state = {
   W: 0, H: 0,
-  brush: "pen", color: PALETTE[0].hex, size: 1,
+  brush: "pen", color: PALETTE[0].hex, size: 1, opacity: 1,
   layers: [], activeLayerId: null, layerCounter: 0,
   versions: [],        // closed versions, then the open one (if any) last
   open: null,          // the version currently recording
@@ -61,7 +66,7 @@ const state = {
   pos: null,           // playhead position; null = live ("now")
   preview: { key: null, i: -1, k: 0 },
   playing: false, playTimer: 0,
-  demo: true, showHint: true,
+  demo: true,
 };
 
 let compositeFb, previewPg, canvasEl;
@@ -69,10 +74,10 @@ let compositeFb, previewPg, canvasEl;
 // ---------------------------------------------------------------- p5 setup
 
 function setup() {
-  // size from the window: setup() can run before the stylesheet has laid out the stage
-  // (64px rail + 232px layers + 48px stage padding; 52px top bar + 96px timeline + 112px stage padding/tray)
-  state.W = Math.floor(Math.min(window.innerWidth - 64 - 232 - 48, 1300));
-  state.H = Math.floor(Math.min(window.innerHeight - 52 - 96 - 112, 860));
+  // full-screen canvas (layout C1): panels float over it. Sized once at load;
+  // resizing the window doesn't resize the canvas in this mockup.
+  state.W = Math.max(320, window.innerWidth); // p5.brush throws on a 0-size sketch (hidden tab)
+  state.H = Math.max(320, window.innerHeight);
   const c = createCanvas(state.W, state.H, WEBGL);
   c.parent("canvas-wrap");
   canvasEl = c.elt;
@@ -85,7 +90,6 @@ function setup() {
   addLayer("Sketch", { silent: true });
 
   buildRail();
-  buildTray();
   bindCanvas();
   bindTimeline();
   bindTopbar();
@@ -190,11 +194,15 @@ function bindCanvas() {
     if (!layer.visible) return toast(`"${layer.name}" is hidden`);
     try { canvasEl.setPointerCapture(e.pointerId); } catch {}
     const p = toCanvas(e);
+    const tool = BRUSHES.find((b) => b.id === state.brush);
     ensureOpenVersion();
+    setPenDown(true);
     state.drawing = {
       brush: state.brush,
+      erase: !!tool.erase,
       color: state.color,
-      weight: +(BRUSHES.find((b) => b.id === state.brush).weight * state.size).toFixed(2),
+      opacity: state.opacity,
+      weight: +(tool.weight * state.size).toFixed(2),
       layerId: layer.id,
       seed: Math.floor(Math.random() * 1e9),
       segs: [],
@@ -225,6 +233,7 @@ function bindCanvas() {
     s.t1 = Date.now();
     delete s.last;
     state.drawing = null;
+    setPenDown(false);
     const v = state.open;
     v.strokes.push(s);
     v.tools[s.brush] = (v.tools[s.brush] || 0) + 1;
@@ -263,13 +272,19 @@ function toCanvas(e) {
 function flushQueue() {
   if (!state.queue.length) return;
   // only one brush target per frame: take the leading run of items on the
-  // same layer, leave the rest for the next frame
-  const layerId = state.queue[0].stroke.layerId;
+  // same layer and of the same kind, leave the rest for the next frame.
+  // Eraser segments are native p5 drawing, so they land immediately, while
+  // brush segments land at the end of the frame; mixing them would reorder.
+  const head = state.queue[0].stroke;
   let n = 0;
-  while (n < state.queue.length && state.queue[n].stroke.layerId === layerId) n++;
+  while (n < state.queue.length && state.queue[n].stroke.layerId === head.layerId && state.queue[n].stroke.erase === head.erase) n++;
   const batch = state.queue.splice(0, n);
-  const layer = state.layers.find((l) => l.id === layerId);
+  const layer = state.layers.find((l) => l.id === head.layerId);
   if (!layer) return;
+  if (head.erase) {
+    for (const { stroke, seg } of batch) eraseSeg(layer.pg, stroke, seg);
+    return;
+  }
   brush.load(layer.pg);
   for (const { stroke, seg } of batch) {
     if (!stroke.seeded) { randomSeed(stroke.seed); stroke.seeded = true; }
@@ -279,8 +294,21 @@ function flushQueue() {
 
 function drawSeg(stroke, seg) {
   const hw = state.W / 2, hh = state.H / 2;
-  brush.set(stroke.brush, stroke.color, stroke.weight);
+  const c = color(stroke.color);
+  c.setAlpha(255 * (stroke.opacity ?? 1));
+  brush.set(stroke.brush, c, stroke.weight);
   brush.line(seg[0] - hw, seg[1] - hh, seg[2] - hw, seg[3] - hh);
+}
+
+function eraseSeg(pg, stroke, seg) {
+  const hw = state.W / 2, hh = state.H / 2;
+  pg.push();
+  pg.erase();
+  pg.stroke(0);
+  pg.strokeWeight(stroke.weight * ERASER_PX);
+  pg.line(seg[0] - hw, seg[1] - hh, seg[2] - hw, seg[3] - hh);
+  pg.noErase();
+  pg.pop();
 }
 
 // ---------------------------------------------------------------- versions
@@ -367,23 +395,30 @@ function renderPreview() {
   if (p.key === key) return;
 
   const v = state.versions[i];
-  let from = 0;
-  if (p.i === i && k >= p.k) {
-    from = p.k; // moving forward inside the same version: just add strokes
-  } else {
+  if (!(p.i === i && k >= p.k)) {
+    // not just moving forward inside the same version: rebuild from the last snapshot
     const base = i > 0 ? state.versions[i - 1].snapshot : null;
     previewPg.clear();
     previewPg.background(PAPER);
     if (base) previewPg.image(base, -state.W / 2, -state.H / 2, state.W, state.H);
+    p.k = 0;
   }
-  if (k > from) {
-    brush.load(previewPg);
-    for (const s of v.strokes.slice(from, k)) {
+  // brush strokes land at the end of the frame, eraser strokes immediately, so
+  // stop before an eraser stroke that follows a brush stroke; finish next frame
+  let j = p.k, usedBrush = false;
+  while (j < k) {
+    const s = v.strokes[j];
+    if (s.erase) {
+      if (usedBrush) break;
+      for (const seg of s.segs) eraseSeg(previewPg, s, seg);
+    } else {
+      if (!usedBrush) { brush.load(previewPg); usedBrush = true; }
       randomSeed(s.seed);
       for (const seg of s.segs) drawSeg(s, seg);
     }
+    j++;
   }
-  Object.assign(p, { key, i, k });
+  Object.assign(p, { key: j === k ? key : null, i, k: j });
 }
 
 function setPos(pos, { fromUser } = {}) {
@@ -415,12 +450,18 @@ function togglePlay() {
   if (!state.versions.some((v) => v.strokes.length)) return toast("Nothing to play yet");
   if (state.pos === null) setPos(0);
   state.playing = true;
-  document.getElementById("t-play").textContent = "❚❚";
+  setPlayIcon();
 }
 
 function stopPlay() {
   state.playing = false;
-  document.getElementById("t-play").textContent = "▶";
+  setPlayIcon();
+}
+
+function setPlayIcon() {
+  const b = document.getElementById("t-play");
+  b.innerHTML = state.playing ? ICONS.pause : ICONS.play;
+  b.setAttribute("aria-label", state.playing ? "Pause" : "Play process");
 }
 
 function stepPlay() {
@@ -435,41 +476,55 @@ function stepPlay() {
   scrollPlayheadIntoView();
 }
 
-// ---------------------------------------------------------------- UI: rail, tray, layers
+// ---------------------------------------------------------------- UI: tool rail, layers
 
 function buildRail() {
+  const tools = document.getElementById("tools");
+  BRUSHES.forEach((b) => {
+    const el = document.createElement("button");
+    el.className = "tool" + (b.id === state.brush ? " active" : "");
+    el.innerHTML = ICONS[b.id];
+    el.title = b.erase ? "Eraser" : `${b.label} (p5.brush "${b.id}")`;
+    el.setAttribute("aria-label", b.label);
+    el.onclick = () => {
+      state.brush = b.id;
+      tools.querySelectorAll(".tool").forEach((t) => t.classList.toggle("active", t === el));
+    };
+    tools.appendChild(el);
+  });
+
+  const btn = document.getElementById("color-btn");
+  const pop = document.getElementById("color-pop");
+  const dot = document.getElementById("color-dot");
   const wrap = document.getElementById("swatches");
+  const setOpen = (open) => { pop.hidden = !open; btn.setAttribute("aria-expanded", open); };
+  dot.style.background = state.color;
+  btn.onclick = (e) => { e.stopPropagation(); setOpen(pop.hidden); };
+  document.addEventListener("pointerdown", (e) => { if (!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) setOpen(false); });
   PALETTE.forEach((c) => {
     const b = document.createElement("button");
     b.className = "swatch" + (c.hex === state.color ? " active" : "");
-    b.style.background = c.hex;
+    b.innerHTML = `<span style="background:${c.hex}"></span>`;
     b.title = c.name;
     b.onclick = () => {
       state.color = c.hex;
+      dot.style.background = c.hex;
       wrap.querySelectorAll(".swatch").forEach((s) => s.classList.toggle("active", s === b));
+      setOpen(false);
     };
     wrap.appendChild(b);
   });
+
   const size = document.getElementById("size");
   size.oninput = () => {
     state.size = +size.value;
     document.getElementById("size-readout").textContent = state.size.toFixed(1);
   };
-}
-
-function buildTray() {
-  const tray = document.getElementById("tray");
-  BRUSHES.forEach((b) => {
-    const el = document.createElement("button");
-    el.className = "tool" + (b.id === state.brush ? " active" : "");
-    el.innerHTML = ICONS[b.id] + `<span>${b.label}</span>`;
-    el.title = `p5.brush "${b.id}"`;
-    el.onclick = () => {
-      state.brush = b.id;
-      tray.querySelectorAll(".tool").forEach((t) => t.classList.toggle("active", t === el));
-    };
-    tray.appendChild(el);
-  });
+  const opacity = document.getElementById("opacity");
+  opacity.oninput = () => {
+    state.opacity = +opacity.value;
+    document.getElementById("opacity-readout").textContent = Math.round(state.opacity * 100);
+  };
 }
 
 function renderLayers() {
@@ -479,9 +534,9 @@ function renderLayers() {
     const li = document.createElement("li");
     li.className = "layer" + (l.id === state.activeLayerId ? " active" : "") + (l.visible ? "" : " hidden-layer");
     li.innerHTML = `
-      <button class="icon-btn eye" title="${l.visible ? "Hide" : "Show"}">${l.visible ? ICONS.eye : ICONS.eyeOff}</button>
+      <button class="icon-btn eye" title="${l.visible ? "Hide" : "Show"}" aria-label="${l.visible ? "Hide" : "Show"} ${l.name}">${l.visible ? ICONS.eye : ICONS.eyeOff}</button>
       <span class="layer-name">${l.name}</span>
-      <button class="icon-btn del" title="Delete layer">${ICONS.trash}</button>
+      <button class="icon-btn del" title="Delete layer" aria-label="Delete ${l.name}">${ICONS.trash}</button>
       ${l.id === state.activeLayerId ? `<label class="layer-opacity">opacity <input type="range" min="0" max="1" step="0.05" value="${l.opacity}"></label>` : ""}`;
     li.onclick = () => { state.activeLayerId = l.id; renderLayers(); };
     li.querySelector(".eye").onclick = (e) => { e.stopPropagation(); l.visible = !l.visible; renderLayers(); };
@@ -497,93 +552,130 @@ function renderLayers() {
 
 // ---------------------------------------------------------------- UI: timeline
 
+const TRACK_PAD = 8; // .track left padding
+
 const chipPitch = () => {
   const cs = getComputedStyle(document.documentElement);
-  return { w: parseFloat(cs.getPropertyValue("--chip-w")), gap: parseFloat(cs.getPropertyValue("--chip-gap")) };
+  return { w: parseFloat(cs.getPropertyValue("--size-segment")), gap: parseFloat(cs.getPropertyValue("--gap-segment")) };
 };
 
 function renderTimeline() {
   const chips = document.getElementById("chips");
-  const n = state.versions.length;
-  const maxCells = Math.max(1, ...state.versions.map((v) => v.cells.size));
   chips.innerHTML = "";
-
-  if (!n) {
-    const el = document.createElement("div");
-    el.className = "chip empty";
-    el.innerHTML = '<span class="chip-label">now</span>';
-    chips.appendChild(el);
-  }
-
+  // empty project: the bar stays, with an empty track and the playhead at the start (Q2: no hint)
   state.versions.forEach((v, i) => {
     const el = document.createElement("div");
     const dominant = Object.entries(v.tools).sort((a, b) => b[1] - a[1])[0];
     el.className = "chip" + (v === state.open ? " open" : "") + (v.justClosed ? " landed" : "");
     v.justClosed = false;
     el.dataset.i = i;
-    el.innerHTML =
-      `<div class="meter" style="height:${Math.round((v.cells.size / maxCells) * 100)}%"></div>` +
-      (dominant ? ICONS[dominant[0]] : '<svg viewBox="0 0 32 32"></svg>') +
-      `<span class="chip-label">${v === state.open ? "now" : "v" + v.n}</span>`;
-    el.addEventListener("mouseenter", () => showTooltip(el, v));
-    el.addEventListener("mouseleave", hideTooltip);
+    el.innerHTML = dominant ? ICONS[dominant[0]] : "";
+    el.setAttribute("aria-label", versionLabel(v));
+    el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") showHoverLabel(el, v); });
+    el.addEventListener("pointerleave", hideHoverLabel);
     chips.appendChild(el);
   });
-
-  document.getElementById("hint").hidden = !(state.showHint && state.versions.filter((v) => v.closedBy).length === 0);
-  const closed = state.versions.filter((v) => v.closedBy).length;
-  const strokes = state.versions.reduce((a, v) => a + v.strokes.length, 0);
-  document.getElementById("timeline-meta").innerHTML =
-    `${closed} version${closed === 1 ? "" : "s"}<br>${strokes} stroke${strokes === 1 ? "" : "s"}` +
-    (state.open ? '<br><span style="color:var(--red)">● recording</span>' : "");
   updatePlayhead();
   updatePastUI();
 }
 
-function updatePlayhead() {
-  const ph = document.getElementById("playhead");
+function playheadX() {
   const { w, gap } = chipPitch();
   const n = state.versions.length;
-  let x;
-  if (!n) x = 64;
-  else if (state.pos === null) x = n * (w + gap) - gap;
-  else {
-    const i = Math.floor(state.pos);
-    x = i * (w + gap) + (state.pos - i) * w;
-  }
-  ph.style.left = x + "px";
+  if (!n) return TRACK_PAD;
+  if (state.pos === null) return TRACK_PAD + n * (w + gap) - gap / 2;
+  const i = Math.floor(state.pos);
+  return TRACK_PAD + i * (w + gap) + (state.pos - i) * w;
+}
 
+function updatePlayhead() {
+  const x = playheadX();
+  document.getElementById("playhead").style.left = x + "px";
+
+  const n = state.versions.length;
   const viewing = state.pos !== null && n > 0;
   const cur = viewing ? posToTarget(state.pos).i : -1;
   document.querySelectorAll(".chip[data-i]").forEach((el) => {
     const i = +el.dataset.i;
-    el.classList.toggle("past", viewing && i < cur);
     el.classList.toggle("current", viewing && i === cur);
     el.classList.toggle("future", viewing && i > cur);
   });
+  placePlayheadLabel();
 }
 
 function scrollPlayheadIntoView() {
   const sc = document.getElementById("track-scroll");
-  const ph = document.getElementById("playhead");
-  const x = ph.offsetLeft;
+  const x = playheadX();
   if (x < sc.scrollLeft + 40 || x > sc.scrollLeft + sc.clientWidth - 40) sc.scrollLeft = x - sc.clientWidth / 2;
+}
+
+// "v3 · Oct 17 · 8 min · +12%" (Q5): info only
+function versionLabel(v) {
+  const end = v === state.open && !v.strokes.length ? Date.now() : v.end;
+  const secs = Math.max(0, Math.round((end - v.start) / 1000));
+  const dur = secs < 60 ? `${secs} s` : `${Math.round(secs / 60)} min`;
+  const date = new Date(v.start).toLocaleDateString([], { month: "short", day: "numeric" });
+  const pct = Math.round((v.cells.size / (GRID * GRID)) * 100);
+  const parts = [`v${v.n}`, date, dur, `+${pct}%`];
+  if (v === state.open) parts.push("recording");
+  return parts.join(" · ");
+}
+
+function labelHTML(text) {
+  return text.split(" · ").join('<span class="sep">·</span>');
 }
 
 function updatePastUI() {
   const stage = document.getElementById("stage");
-  const banner = document.getElementById("past-banner");
-  const viewing = state.pos !== null && state.versions.length;
-  stage.classList.toggle("viewing-past", !!viewing);
-  banner.hidden = !viewing;
-  if (!viewing) {
-    document.getElementById("past-notice").hidden = true;
-    return;
-  }
-  const { i, k } = posToTarget(state.pos);
-  const v = state.versions[i];
-  const when = new Date(k > 0 ? v.strokes[k - 1].t1 : v.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
-  document.getElementById("past-text").textContent = `Viewing v${v.n} · stroke ${k}/${v.strokes.length} · ${when}`;
+  const viewing = state.pos !== null && state.versions.length > 0;
+  stage.classList.toggle("viewing-past", viewing);
+  document.getElementById("btn-now").hidden = !viewing;
+  if (!viewing) document.getElementById("past-notice").hidden = true;
+  placePlayheadLabel();
+}
+
+// the playhead label shows while dragging or parked on a past version; never on "now"
+function placePlayheadLabel() {
+  const label = document.getElementById("ph-label");
+  if (state.pos === null || !state.versions.length) { label.hidden = true; return; }
+  const v = state.versions[posToTarget(state.pos).i];
+  label.innerHTML = labelHTML(versionLabel(v));
+  const track = document.getElementById("track").getBoundingClientRect();
+  const bar = document.getElementById("timeline").getBoundingClientRect();
+  label.style.left = clampX(track.left + playheadX(), label) + "px";
+  label.style.top = bar.top - 8 + "px";
+  label.hidden = false;
+  if (hoverLabelFor === v) hideHoverLabel();
+}
+
+let hoverLabelFor = null;
+
+// desktop hover: the same label, white, as a preview; doesn't move the playhead
+function showHoverLabel(el, v) {
+  if (document.getElementById("track").classList.contains("dragging")) return;
+  if (state.pos !== null && state.versions[posToTarget(state.pos).i] === v) return; // already labeled
+  const tip = document.getElementById("hover-label");
+  const r = el.getBoundingClientRect();
+  const bar = document.getElementById("timeline").getBoundingClientRect();
+  tip.innerHTML = labelHTML(versionLabel(v));
+  tip.hidden = false;
+  tip.style.left = clampX(r.left + r.width / 2, tip) + "px";
+  tip.style.top = bar.top - 8 + "px";
+  hoverLabelFor = v;
+}
+
+function hideHoverLabel() {
+  document.getElementById("hover-label").hidden = true;
+  hoverLabelFor = null;
+}
+
+function clampX(x, el) {
+  const half = el.offsetWidth / 2 || 120;
+  return Math.max(16 + half, Math.min(window.innerWidth - 16 - half, x));
+}
+
+function setPenDown(down) {
+  document.getElementById("timeline-dock").classList.toggle("pen-down", down);
 }
 
 function bindTimeline() {
@@ -602,18 +694,17 @@ function bindTimeline() {
     if (!state.versions.length) return;
     try { track.setPointerCapture(e.pointerId); } catch {}
     track.classList.add("dragging");
-    hideTooltip();
+    hideHoverLabel();
     scrubTo(e);
   });
   track.addEventListener("pointermove", (e) => { if (track.classList.contains("dragging")) scrubTo(e); });
   const stopDrag = () => track.classList.remove("dragging");
   track.addEventListener("pointerup", stopDrag);
   track.addEventListener("pointercancel", stopDrag);
+  document.getElementById("track-scroll").addEventListener("scroll", () => { hideHoverLabel(); placePlayheadLabel(); });
+  window.addEventListener("resize", placePlayheadLabel);
 
-  document.getElementById("t-start").onclick = () => state.versions.length && setPos(0, { fromUser: true });
-  document.getElementById("t-prev").onclick = () => versionBoundary(-1);
-  document.getElementById("t-next").onclick = () => versionBoundary(1);
-  document.getElementById("t-now").onclick = () => setPos(null, { fromUser: true });
+  setPlayIcon();
   document.getElementById("t-play").onclick = togglePlay;
   document.getElementById("btn-now").onclick = () => setPos(null, { fromUser: true });
 
@@ -621,32 +712,10 @@ function bindTimeline() {
     if (e.target.tagName === "INPUT") return;
     if (e.key === "ArrowLeft") versionBoundary(-1);
     else if (e.key === "ArrowRight") versionBoundary(1);
+    else if (e.key === "Home") state.versions.length && setPos(0, { fromUser: true });
     else if (e.key === "Escape") setPos(null, { fromUser: true });
     else if (e.key === " ") { e.preventDefault(); togglePlay(); }
   });
-}
-
-function showTooltip(el, v) {
-  if (document.getElementById("track").classList.contains("dragging")) return;
-  const tip = document.getElementById("tooltip");
-  const r = el.getBoundingClientRect();
-  const dur = Math.max(0, Math.round(((v.strokes.length ? v.end : Date.now()) - v.start) / 1000));
-  const mins = Math.floor(dur / 60), secs = String(dur % 60).padStart(2, "0");
-  const pct = Math.round((v.cells.size / (GRID * GRID)) * 100);
-  const tools = Object.entries(v.tools).sort((a, b) => b[1] - a[1]).map(([t, c]) => `${t}×${c}`).join(", ") || "none yet";
-  const sizes = [...new Set(v.strokes.map((s) => s.weight))].join(", ");
-  tip.innerHTML =
-    `<b>${v === state.open ? "now (recording)" : "v" + v.n}</b> · ${new Date(v.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}<br>` +
-    `${v.strokes.length} strokes · ${mins}:${secs} · ${pct}% of canvas<br>` +
-    `tools: ${tools}${sizes ? `<br>sizes: ${sizes}` : ""}` +
-    (v.closedBy ? `<br>closed by: <b>${v.closedBy}</b>` : "");
-  tip.style.left = r.left + r.width / 2 + "px";
-  tip.style.top = r.top - 8 + "px";
-  tip.hidden = false;
-}
-
-function hideTooltip() {
-  document.getElementById("tooltip").hidden = true;
 }
 
 // ---------------------------------------------------------------- UI: misc
@@ -654,7 +723,6 @@ function hideTooltip() {
 function bindTopbar() {
   document.getElementById("btn-add-layer").onclick = () => addLayer();
   document.getElementById("opt-demo").onchange = (e) => { state.demo = e.target.checked; };
-  document.getElementById("opt-hint").onchange = (e) => { state.showHint = e.target.checked; renderTimeline(); };
   document.getElementById("btn-export").onclick = () => {
     state.actions.push(() => takeSnapshot().save("rewind-final", "png"));
   };

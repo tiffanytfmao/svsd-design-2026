@@ -16,14 +16,14 @@ Then open http://localhost:5173.
 
 ## What the demo shows
 
-- **Canvas page** (based on Ajia's lo-fi sketch): color and size controls on the left, 6 built-in p5.brush brushes in a bottom tray (pen, marker, pencil, soft, charcoal, spray), and layers on the right with hide, opacity, and delete.
-- **Every stroke is saved as data:** `{brush, color, weight, layer, seed, segments, time}`. Replaying a stroke with the same seed redraws it identically.
-- **Versions** are groups of strokes. A version closes after a **pause** in drawing, a **time cap**, or a **layer being added or deleted**, whichever comes first. The real rules are a 90s pause and a 10-minute cap. Under **⚙ Mock settings**, "demo timing" shortens these to 4s and 30s so you can see it work quickly.
-- **Timeline bar** (like Fusion 360's): play controls (⏮ ◀ ▶ ▶| ⏭) and equal-width version chips that scroll sideways. Each chip shows its most-used tool, and its fill shows how much of the canvas changed. Hovering shows time, stroke count, % of canvas, tools and sizes, and what closed the version.
-- **Scrubbing** moves stroke by stroke. The past version shows full-size on the canvas with a "Viewing v3 · stroke 4/8 · Back to now" banner. ▶ plays the whole process as a timelapse.
-- **Empty state:** the bar is always visible, and the hint can be turned on or off in Mock settings to compare.
+- **Canvas page, layout C1:** the white canvas fills the window and everything floats over it: back + project name (top left), Export (top right), a tool rail on the left (6 built-in p5.brush brushes plus an eraser as round buttons, a color swatch with 8 default colors, and size and opacity sliders), and a layers panel on the right with hide, opacity, and delete.
+- **Visual system:** white floating panels, dark purple (#20255D) text and icons, Rose 50 segments, tan selection with a purple ring, an orange playhead, and M PLUS Rounded 1c type. The CSS variables use the same names as the Figma variables (e.g. `--color-bg-segment-selected`).
+- **Every stroke is saved as data:** `{brush, color, opacity, weight, layer, seed, segments, time}`. Replaying a stroke with the same seed redraws it identically. Eraser strokes are recorded the same way.
+- **Versions** are groups of strokes. A version closes after a **pause** in drawing, a **time cap**, or a **layer being added or deleted**, whichever comes first. The real rules are a 90s pause and a 10-minute cap. Under **⚙ mock settings**, "demo timing" shortens these to 4s and 30s so you can see it work quickly.
+- **Timeline pill** (like Fusion 360's): a play button and equal-width version segments that scroll sideways, each showing its most-used tool. Segments after the playhead turn white with a dashed outline. The pill fades while you draw and comes back when the pen lifts.
+- **Scrubbing** moves stroke by stroke, and the past version shows full-size on the canvas. One label above the playhead shows "v3 · Oct 17 · 8 min · +12%" (on desktop, hovering a segment previews it in white). A "Back to now" pill appears above the bar while you're viewing the past. ▶ plays the whole process as a timelapse.
 
-**Placeholders and gaps:** drawing on a past version is blocked (the behavior is still undecided: auto-fork vs. read-only + restore). Past versions show as a flattened image, ignoring layer order and visibility. No pan/zoom, eraser, undo, saving between reloads, projects page, or history page. Export saves only the final PNG.
+**Placeholders and gaps:** drawing on a past version is blocked (the behavior is still undecided: auto-fork vs. read-only + restore). Past versions show as a flattened image, ignoring layer order and visibility. No pan/zoom, undo, saving between reloads, projects page, or history page. Export saves only the final PNG. The canvas is sized once at load.
 
 ## What we learned about p5.brush (2.2.3, with p5 2.3.3)
 
